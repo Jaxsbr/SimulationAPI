@@ -30,12 +30,22 @@ namespace FakeApi.Listener
 
             _httpListener.Start();
 
-            while (_listening)
-            {
-                Task.Run(() => ProcessRequest(_httpListener.GetContext()));                
+            HandleGetContext();            
+        }
+
+        private static void HandleGetContext()
+        {
+            var result = _httpListener.BeginGetContext(new AsyncCallback(ListenerCallback), _httpListener);
+
+            result.AsyncWaitHandle.WaitOne();
+
+            if (!_listening)
+            { 
+                _httpListener.Stop();
+                return;
             }
 
-            _httpListener.Stop();
+            HandleGetContext();
         }
 
         private static void ListenerCallback(IAsyncResult asyncResult)
@@ -71,35 +81,6 @@ namespace FakeApi.Listener
             {
                 SendResponse(response, GetResponseString(ResponseTypes.InvalidToken));
             }            
-        }
-
-        private static void ProcessRequest(HttpListenerContext context)
-        {
-            var request = context.Request;
-
-            var response = context.Response;
-
-            var headerValue = context.Request.Headers.GetValues("IsValid");
-
-            var isValid = context.Request.Headers["IsValid"];
-
-            if (string.IsNullOrWhiteSpace(isValid))
-            {
-                response.StatusCode = 400; // Bad Request
-
-                SendResponse(response, GetResponseString(ResponseTypes.InvalidHeader));
-
-                return;
-            }
-
-            if (isValid.ToLower() == "y")
-            {
-                SendResponse(response, GetResponseString(ResponseTypes.ValidToken));
-            }
-            else
-            {
-                SendResponse(response, GetResponseString(ResponseTypes.InvalidToken));
-            }     
         }
 
         private static string GetResponseString(ResponseTypes responseType)

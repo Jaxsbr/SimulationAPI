@@ -8,32 +8,40 @@ namespace FakeApi.Listener
     class Program
     {
         static bool _listening = true;
+        static HttpListener _httpListener;
+        static string _url = "http://localhost:5001/";
 
         static void Main(string[] args)
         {
+            Console.WriteLine($"Listening On {_url}");
+
             Task.Run(() => Listen());
 
             Console.Read();
+
+            _httpListener.Stop();
         }
 
         private static void Listen()
         {
-            var httpListener = new HttpListener();
+            _httpListener = new HttpListener();
 
-            httpListener.Prefixes.Add("http://localhost:8080/");
+            _httpListener.Prefixes.Add("http://localhost:5001/");
 
-            httpListener.Start();
+            _httpListener.Start();
 
             while (_listening)
             {
-                httpListener.BeginGetContext(new AsyncCallback(ListenerCallback), httpListener);
+                Task.Run(() => ProcessRequest(_httpListener.GetContext()));                
             }
 
-            httpListener.Stop();
+            _httpListener.Stop();
         }
 
         private static void ListenerCallback(IAsyncResult asyncResult)
         {
+            Console.WriteLine("Packet Received");
+
             var httpListener = (HttpListener)asyncResult.AsyncState;
 
             var context = httpListener.EndGetContext(asyncResult);
@@ -63,6 +71,35 @@ namespace FakeApi.Listener
             {
                 SendResponse(response, GetResponseString(ResponseTypes.InvalidToken));
             }            
+        }
+
+        private static void ProcessRequest(HttpListenerContext context)
+        {
+            var request = context.Request;
+
+            var response = context.Response;
+
+            var headerValue = context.Request.Headers.GetValues("IsValid");
+
+            var isValid = context.Request.Headers["IsValid"];
+
+            if (string.IsNullOrWhiteSpace(isValid))
+            {
+                response.StatusCode = 400; // Bad Request
+
+                SendResponse(response, GetResponseString(ResponseTypes.InvalidHeader));
+
+                return;
+            }
+
+            if (isValid.ToLower() == "y")
+            {
+                SendResponse(response, GetResponseString(ResponseTypes.ValidToken));
+            }
+            else
+            {
+                SendResponse(response, GetResponseString(ResponseTypes.InvalidToken));
+            }     
         }
 
         private static string GetResponseString(ResponseTypes responseType)
